@@ -527,15 +527,12 @@ def main():
     all_countries = sorted(
         list(set(r.get("country", "") for r in active_records if r.get("country")))
     )
-    all_states = sorted(
-        list(
-            set(
-                extract_state_from_location(r.get("arrested_location", ""))
-                for r in active_records
-            )
-        )
+    # Extract states and filter out None/empty before sorting
+    states_set = set(
+        extract_state_from_location(r.get("arrested_location", ""))
+        for r in active_records
     )
-    all_states = [s for s in all_states if s]
+    all_states = sorted([s for s in states_set if s])
 
     # -------------------------------------------------------------------------
     # LAYOUT
