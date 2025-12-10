@@ -1,0 +1,41 @@
+name: Manual Data Update
+
+on:
+  workflow_dispatch:
+
+jobs:
+  manual-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@latest
+      
+      - name: Install ChromeDriver
+        uses: nanasess/setup-chromedriver@master
+      
+      - name: Install dependencies
+        run: |
+          pip install selenium pandas requests
+      
+      - name: Run DHS scraper
+        run: |
+          python dhs_tracker.py --max-pages 50
+      
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
+          git add data/historical_arrests.json
+          git diff --staged --quiet || git commit -m "🔧 Manual data update - $(date +'%Y-%m-%d %H:%M:%S')"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
