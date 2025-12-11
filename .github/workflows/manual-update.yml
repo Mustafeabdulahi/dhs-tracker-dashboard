@@ -28,7 +28,7 @@ jobs:
       
       - name: Run DHS scraper
         run: |
-          python dhs_tracker.py --max-pages 50
+          python dhs_tracker.py --max-pages 1000
       
       - name: Commit and push changes
         run: |
