@@ -717,30 +717,6 @@ def main():
 
         st.markdown("</div>", unsafe_allow_html=True)  # End search card
 
-        # Disclaimer in Sidebar
-        st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
-        st.warning("""
-        **⚠️ Disclaimer**
-        
-        Data from DHS.gov. Arrest dates are approximated (±1-7 days). 
-        
-        For official information, contact ICE or consult legal counsel.
-        
-        Dashboard for informational purposes only.
-        """)
-
-        # Footer
-        st.markdown(
-            """
-        ---
-        <div style="text-align: center; color: #cbd5e1; font-size: 11px;">
-        Built by Mustafe Abdulahi<br>
-        <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard" target="_blank" style="color: #93c5fd;">GitHub</a>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
     # MAIN AREA
 
     # Filter Logic

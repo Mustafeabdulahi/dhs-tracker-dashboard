@@ -46,10 +46,17 @@ streamlit run dashboard_v2.py
 
 Data sourced from the Department of Homeland Security's "Worst of the Worst" database.
 
+ Monitor the Update:
+Check workflow status tomorrow:
+https://github.com/Mustafeabdulahi/dhs-tracker-dashboard/actions
+View your updated dashboard:
+https://dhs-tracker-dashboard-n6kf3f8ifnymee9dmappbet.streamlit.app/
+
+
 ## 📄 License
 
 [Your License]
 
 ## 👨‍💻 Author
 
-[Your Name]
+Mustafe Abdulahi
