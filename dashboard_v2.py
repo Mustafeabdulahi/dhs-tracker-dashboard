@@ -538,55 +538,117 @@ def main():
     if not db_data["records"]:
         st.error("⚠️ No data available. Please run the scraper first.")
         return
-    
+
     # Compact Info Navbar
     last_updated = db_data.get("metadata", {}).get("last_updated")
     if last_updated:
         try:
             from datetime import datetime
+
             dt = datetime.fromisoformat(last_updated)
             formatted_date = dt.strftime("%b %d, %Y at %I:%M %p")
         except:
             formatted_date = last_updated
     else:
         formatted_date = "Unknown"
+
+    st.markdown(
+        f"""
+    <style>
+        @keyframes ticker-scroll {{
+            0% {{
+                transform: translateX(0);
+            }}
+            100% {{
+                transform: translateX(-50%);
+            }}
+        }}
+        
+        /* Top Ticker Bar - Fixed at very top */
+        .top-ticker {{
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            height: 35px;
+            z-index: 999999;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }}
+        
+        .ticker-content {{
+            display: inline-flex;
+            white-space: nowrap;
+            color: white !important;
+            font-weight: 600;
+            font-size: 13px;
+            animation: ticker-scroll 120s linear infinite;
+        }}
+        
+        .ticker-item {{
+            padding: 0 50px;
+        }}
+        
+        /* Adjust Streamlit header to account for ticker */
+        header[data-testid="stHeader"] {{
+            margin-top: 35px !important;
+        }}
+        
+        /* Adjust main content */
+        .main .block-container {{
+            padding-top: 1rem !important;
+        }}
+        
+        /* Info bar - more compact */
+        .info-bar {{
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+            padding: 6px 16px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }}
+    </style>
     
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); 
-                padding: 12px 24px; 
-                border-radius: 8px; 
-                margin-bottom: 20px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                flex-wrap: wrap;">
-        <div style="color: white; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-            <span style="font-weight: 600; font-size: 14px;">
-                ⚠️ Data from DHS.gov | Arrest dates ±1-7 days
-            </span>
-            <span style="font-weight: 500; font-size: 13px; opacity: 0.9;">
-                ✅ Updated: {formatted_date}
-            </span>
+    <!-- Fixed Top Ticker -->
+    <div class="top-ticker">
+        <div class="ticker-content">
+            <span class="ticker-item">⚠️ DISCLAIMER: DHS.gov data • Arrest dates ±1-7 days • Informational only, not for legal use • Contact ICE for official records • Updated: {formatted_date}</span>
+            <span class="ticker-item">⚠️ DISCLAIMER: DHS.gov data • Arrest dates ±1-7 days • Informational only, not for legal use • Contact ICE for official records • Updated: {formatted_date}</span>
         </div>
+    </div>
+    
+    <!-- Quick Links Bar -->
+    <div class="info-bar">
+        <span style="color: white; font-size: 12px; font-weight: 500;">
+            📊 DHS Worst of the Worst Tracker
+        </span>
         <div style="display: flex; gap: 15px;">
             <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard/issues" 
                target="_blank" 
-               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; opacity: 0.9; transition: opacity 0.2s;"
+               style="color: white; text-decoration: none; font-size: 11px; font-weight: 500; opacity: 0.9;"
                onmouseover="this.style.opacity='1'" 
                onmouseout="this.style.opacity='0.9'">
                 📧 Report Issue
             </a>
             <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard" 
                target="_blank" 
-               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; opacity: 0.9; transition: opacity 0.2s;"
+               style="color: white; text-decoration: none; font-size: 11px; font-weight: 500; opacity: 0.9;"
                onmouseover="this.style.opacity='1'" 
                onmouseout="this.style.opacity='0.9'">
-                💻 Source Code
+                💻 Source
             </a>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     all_records = list(db_data["records"].values())
     active_records = [r for r in all_records if r.get("status") == "active"]
@@ -654,7 +716,7 @@ def main():
         do_search = st.button("Search")
 
         st.markdown("</div>", unsafe_allow_html=True)  # End search card
-        
+
         # Disclaimer in Sidebar
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
         st.warning("""
@@ -666,15 +728,18 @@ def main():
         
         Dashboard for informational purposes only.
         """)
-        
+
         # Footer
-        st.markdown("""
+        st.markdown(
+            """
         ---
         <div style="text-align: center; color: #cbd5e1; font-size: 11px;">
         Built by Mustafe Abdulahi<br>
         <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard" target="_blank" style="color: #93c5fd;">GitHub</a>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     # MAIN AREA
 
