@@ -401,19 +401,6 @@ st.markdown(
     div[data-testid="column"] {
         padding: 0 0.5rem;
     }
-    
-    /* Navbar responsive styling */
-    @media (max-width: 768px) {
-        .navbar-container {
-            flex-direction: column !important;
-            gap: 15px !important;
-            text-align: center;
-        }
-        .navbar-links {
-            flex-direction: column !important;
-            gap: 10px !important;
-        }
-    }
 
 </style>
 """,
@@ -552,62 +539,54 @@ def main():
         st.error("⚠️ No data available. Please run the scraper first.")
         return
     
-    # Navigation Bar
-    last_updated = db_data.get("metadata", {}).get("last_updated", "")
-    formatted_date = "Unknown"
+    # Compact Info Navbar
+    last_updated = db_data.get("metadata", {}).get("last_updated")
     if last_updated:
         try:
+            from datetime import datetime
             dt = datetime.fromisoformat(last_updated)
             formatted_date = dt.strftime("%b %d, %Y at %I:%M %p")
         except:
             formatted_date = last_updated
+    else:
+        formatted_date = "Unknown"
     
     st.markdown(f"""
-    <div class="navbar-container" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); 
+    <div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); 
                 padding: 12px 24px; 
                 border-radius: 8px; 
                 margin-bottom: 20px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 display: flex;
                 justify-content: space-between;
-                align-items: center;">
-        <div style="display: flex; align-items: center; gap: 30px;">
-            <div style="color: white; font-size: 18px; font-weight: 700;">
-                🇺🇸 DHS Tracker
-            </div>
-            <div style="color: rgba(255,255,255,0.9); font-size: 13px;">
+                align-items: center;
+                flex-wrap: wrap;">
+        <div style="color: white; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+            <span style="font-weight: 600; font-size: 14px;">
+                ⚠️ Data from DHS.gov | Arrest dates ±1-7 days
+            </span>
+            <span style="font-weight: 500; font-size: 13px; opacity: 0.9;">
                 ✅ Updated: {formatted_date}
-            </div>
+            </span>
         </div>
-        <div class="navbar-links" style="display: flex; gap: 20px; align-items: center;">
-            <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard" 
-               target="_blank" 
-               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; transition: opacity 0.2s;"
-               onmouseover="this.style.opacity='0.8'" 
-               onmouseout="this.style.opacity='1'">
-                📦 Source Code
-            </a>
+        <div style="display: flex; gap: 15px;">
             <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard/issues" 
                target="_blank" 
-               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; transition: opacity 0.2s;"
-               onmouseover="this.style.opacity='0.8'" 
-               onmouseout="this.style.opacity='1'">
-                🐛 Report Issue
+               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; opacity: 0.9; transition: opacity 0.2s;"
+               onmouseover="this.style.opacity='1'" 
+               onmouseout="this.style.opacity='0.9'">
+                📧 Report Issue
             </a>
-            <div style="color: rgba(255,255,255,0.8); font-size: 12px; border-left: 1px solid rgba(255,255,255,0.3); padding-left: 20px;">
-                by Mustafe Abdulahi
-            </div>
+            <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard" 
+               target="_blank" 
+               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; opacity: 0.9; transition: opacity 0.2s;"
+               onmouseover="this.style.opacity='1'" 
+               onmouseout="this.style.opacity='0.9'">
+                💻 Source Code
+            </a>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Disclaimer Banner
-    st.info("""
-    ⚠️ **Important Disclaimer**: This data is sourced from publicly available DHS records. 
-    Arrest dates shown are **approximated** based on when records first appeared (±1-7 days accuracy). 
-    For official information, contact ICE directly or consult with legal counsel. 
-    This dashboard is for informational purposes only and should not be used as the sole source for legal decisions.
-    """)
 
     all_records = list(db_data["records"].values())
     active_records = [r for r in all_records if r.get("status") == "active"]
@@ -675,6 +654,27 @@ def main():
         do_search = st.button("Search")
 
         st.markdown("</div>", unsafe_allow_html=True)  # End search card
+        
+        # Disclaimer in Sidebar
+        st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
+        st.warning("""
+        **⚠️ Disclaimer**
+        
+        Data from DHS.gov. Arrest dates are approximated (±1-7 days). 
+        
+        For official information, contact ICE or consult legal counsel.
+        
+        Dashboard for informational purposes only.
+        """)
+        
+        # Footer
+        st.markdown("""
+        ---
+        <div style="text-align: center; color: #cbd5e1; font-size: 11px;">
+        Built by Mustafe Abdulahi<br>
+        <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard" target="_blank" style="color: #93c5fd;">GitHub</a>
+        </div>
+        """, unsafe_allow_html=True)
 
     # MAIN AREA
 
