@@ -402,7 +402,156 @@ st.markdown(
         padding: 0 0.5rem;
     }
 
+    /* -------------------------------------------------------------------------
+       PHOTO ZOOM MODAL
+       ------------------------------------------------------------------------- */
+    .mugshot-img {
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    
+    .mugshot-img:hover {
+        transform: scale(1.05);
+    }
+    
+    /* Modal Overlay */
+    .photo-modal {
+        display: none;
+        position: fixed;
+        z-index: 999999;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.95);
+        justify-content: center;
+        align-items: center;
+        animation: fadeIn 0.3s;
+    }
+    
+    .photo-modal.active {
+        display: flex;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .photo-modal-content {
+        max-width: 90%;
+        max-height: 90%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        animation: zoomIn 0.3s;
+    }
+    
+    @keyframes zoomIn {
+        from { transform: scale(0.8); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    
+    .photo-modal-close {
+        position: absolute;
+        top: 20px;
+        right: 40px;
+        color: white;
+        font-size: 48px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: color 0.2s;
+        user-select: none;
+    }
+    
+    .photo-modal-close:hover {
+        color: #ef4444;
+    }
+    
+    .photo-modal-info {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        text-align: center;
+        font-size: 14px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 20px;
+        border-radius: 20px;
+    }
+
 </style>
+
+<script>
+    // Photo Zoom Modal JavaScript
+    function initPhotoZoom() {
+        // Create modal if it doesn't exist
+        if (!document.getElementById('photoModal')) {
+            const modal = document.createElement('div');
+            modal.id = 'photoModal';
+            modal.className = 'photo-modal';
+            modal.innerHTML = `
+                <span class="photo-modal-close" onclick="closePhotoModal()">&times;</span>
+                <img class="photo-modal-content" id="modalImage" alt="Zoomed photo">
+                <div class="photo-modal-info">Click anywhere or press ESC to close</div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Close on background click
+            modal.onclick = function(event) {
+                if (event.target === modal) {
+                    closePhotoModal();
+                }
+            };
+            
+            // Close on ESC key
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closePhotoModal();
+                }
+            });
+        }
+        
+        // Add click handlers to all mugshots
+        document.querySelectorAll('.mugshot-img').forEach(img => {
+            img.onclick = function() {
+                openPhotoModal(this.src);
+            };
+        });
+    }
+    
+    function openPhotoModal(imageSrc) {
+        const modal = document.getElementById('photoModal');
+        const modalImg = document.getElementById('modalImage');
+        modal.classList.add('active');
+        modalImg.src = imageSrc;
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closePhotoModal() {
+        const modal = document.getElementById('photoModal');
+        modal.classList.remove('active');
+        document.body.style.overflow = 'auto';
+    }
+    
+    // Initialize on page load and after Streamlit updates
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPhotoZoom);
+    } else {
+        initPhotoZoom();
+    }
+    
+    // Reinitialize after Streamlit rerenders
+    const observer = new MutationObserver(function(mutations) {
+        initPhotoZoom();
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+</script>
 """,
     unsafe_allow_html=True,
 )
