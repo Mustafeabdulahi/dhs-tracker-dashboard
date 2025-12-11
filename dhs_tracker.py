@@ -379,6 +379,30 @@ class DHSWoWScraper:
             print(f"  ⚠️  Error loading page index {page_index}: {e}")
             return False
 
+    def get_cards_with_retry(self, page_index: int, attempts: int = 2) -> List[Dict]:
+        """
+        Load a page and extract cards, with retry and scroll to handle lazy loading.
+        """
+        for attempt in range(1, attempts + 1):
+            if not self.load_page_number(page_index):
+                continue
+
+            # Nudge the page to load lazy content
+            try:
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            except Exception:
+                pass
+            time.sleep(self.delay + 1)
+
+            cards = self.extract_all_cards()
+            if cards:
+                return cards
+
+            print(f"  ⚠️  No cards found on page {page_index+1}, retry {attempt}/{attempts}")
+            time.sleep(self.delay + 2)
+
+        return []
+
     def apply_filters(
         self, country: str = None, state: str = None, search_term: str = None
     ):
@@ -451,11 +475,7 @@ class DHSWoWScraper:
             page_index = page_num - 1  # zero-based for the ?page= param
             print(f"Page {page_num} (page param={page_index})...", end=" ")
 
-            if not self.load_page_number(page_index):
-                print("✗ Failed to load page; stopping")
-                break
-
-            cards = self.extract_all_cards()
+            cards = self.get_cards_with_retry(page_index, attempts=2)
 
             if cards:
                 all_records.extend(cards)
