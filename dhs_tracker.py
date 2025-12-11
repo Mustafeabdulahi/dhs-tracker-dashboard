@@ -39,11 +39,13 @@ class DHSDatabase:
         with open(self.db_path, "w", encoding="utf-8") as f:
             json.dump(self.data, indent=2, fp=f, ensure_ascii=False)
 
-    def update_records(self, new_records: List[Dict], min_expected_records: int = 100) -> Dict:
+    def update_records(
+        self, new_records: List[Dict], min_expected_records: int = 100
+    ) -> Dict:
         """
         Update database with new scrape results
         Returns statistics about changes
-        
+
         Args:
             new_records: List of newly scraped records
             min_expected_records: Minimum records expected for a successful scrape.
@@ -57,14 +59,24 @@ class DHSDatabase:
             "total_in_scrape": len(new_records),
         }
 
-        # Safety check: if we got very few records, something went wrong
-        current_active = sum(1 for r in self.data["records"].values() if r["status"] == "active")
-        scrape_looks_incomplete = len(new_records) < min_expected_records
-        
-        if scrape_looks_incomplete and current_active > len(new_records) * 2:
-            print(f"\n⚠️  WARNING: Scraped only {len(new_records)} records but have {current_active} active.")
-            print(f"⚠️  This looks like an incomplete scrape. Will NOT mark missing records as removed.")
-            print(f"⚠️  Set min_expected_records lower if this is intentional.\n")
+        # Safety check: if we got very few records, something went wrong.
+        current_active = sum(
+            1 for r in self.data["records"].values() if r["status"] == "active"
+        )
+        scrape_looks_incomplete = (
+            len(new_records) < min_expected_records
+            or len(new_records)
+            < 0.9 * current_active  # require at least 90% of known active
+        )
+
+        if scrape_looks_incomplete:
+            print(
+                f"\n⚠️  WARNING: Scraped only {len(new_records)} records but have {current_active} active."
+            )
+            print(
+                f"⚠️  This looks like an incomplete scrape. Will NOT mark missing records as removed."
+            )
+            print(f"⚠️  Set --min-expected-records lower if this is intentional.\n")
 
         # Create a set of names from new scrape
         scraped_names = {r["name"] for r in new_records}
@@ -126,7 +138,9 @@ class DHSDatabase:
                     record["removed_date"] = today
                     print(f"  ❌ REMOVED: {name}")
         else:
-            print(f"\n✓ Skipped marking missing records as removed (scrape appears incomplete)")
+            print(
+                f"\n✓ Skipped marking missing records as removed (scrape appears incomplete)"
+            )
 
         # Update metadata
         self.data["metadata"]["last_updated"] = datetime.now().isoformat()
@@ -362,16 +376,21 @@ class DHSWoWScraper:
             print(f"  ✗ Error extracting cards: {e}")
             return []
 
-    def load_page_number(self, page_index: int) -> bool:
+    def load_page_number(self, page_index: int, cache_bust: bool = False) -> bool:
         """
         Navigate directly to a page by index (0-based) using the ?page=X query param.
-        This avoids brittle Next-button clicking and ensures we can jump to deep pages.
+        Optionally add a cache-buster to force a fresh load.
         """
         try:
+            suffix = ""
+            if cache_bust:
+                import time as _t
+
+                suffix = f"&ts={int(_t.time() * 1000)}"
             if page_index <= 0:
                 url = self.base_url
             else:
-                url = f"{self.base_url}?page={page_index}"
+                url = f"{self.base_url}?page={page_index}{suffix}"
             self.driver.get(url)
             time.sleep(self.delay + 1)
             return True
@@ -379,27 +398,32 @@ class DHSWoWScraper:
             print(f"  ⚠️  Error loading page index {page_index}: {e}")
             return False
 
-    def get_cards_with_retry(self, page_index: int, attempts: int = 2) -> List[Dict]:
+    def get_cards_with_retry(self, page_index: int, attempts: int = 4) -> List[Dict]:
         """
         Load a page and extract cards, with retry and scroll to handle lazy loading.
         """
         for attempt in range(1, attempts + 1):
-            if not self.load_page_number(page_index):
+            cache_bust = attempt > 1  # add cache-buster after first try
+            if not self.load_page_number(page_index, cache_bust=cache_bust):
                 continue
 
             # Nudge the page to load lazy content
             try:
-                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                self.driver.execute_script(
+                    "window.scrollTo(0, document.body.scrollHeight);"
+                )
             except Exception:
                 pass
-            time.sleep(self.delay + 1)
+            time.sleep(self.delay + 2)  # slightly longer settle time
 
             cards = self.extract_all_cards()
             if cards:
                 return cards
 
-            print(f"  ⚠️  No cards found on page {page_index+1}, retry {attempt}/{attempts}")
-            time.sleep(self.delay + 2)
+            print(
+                f"  ⚠️  No cards found on page {page_index + 1}, retry {attempt}/{attempts}"
+            )
+            time.sleep(self.delay + 3)
 
         return []
 
@@ -470,12 +494,26 @@ class DHSWoWScraper:
                 return all_records
 
         consecutive_empty = 0
+        restart_every = (
+            150  # restart driver periodically to avoid long-session flakiness
+        )
 
         for page_num in range(1, max_pages + 1):
             page_index = page_num - 1  # zero-based for the ?page= param
             print(f"Page {page_num} (page param={page_index})...", end=" ")
 
-            cards = self.get_cards_with_retry(page_index, attempts=2)
+            # Periodic driver restart to avoid long-session instability
+            if page_num > 1 and (page_num - 1) % restart_every == 0:
+                try:
+                    self.close()
+                except Exception:
+                    pass
+                print("\n  ↻ Restarting browser to avoid session issues...\n")
+                if not self.setup_driver():
+                    print("  ✗ Failed to restart driver")
+                    break
+
+            cards = self.get_cards_with_retry(page_index, attempts=4)
 
             if cards:
                 all_records.extend(cards)
@@ -492,9 +530,11 @@ class DHSWoWScraper:
                     print("\n⚠️  Three consecutive empty pages, stopping scrape")
                     break
 
-        print(f"\n{'='*70}")
-        print(f"Scraping completed: {len(all_records)} total records from {page_num} pages")
-        print(f"{'='*70}\n")
+        print(f"\n{'=' * 70}")
+        print(
+            f"Scraping completed: {len(all_records)} total records from {page_num} pages"
+        )
+        print(f"{'=' * 70}\n")
         return all_records
 
     def close(self):
@@ -561,7 +601,9 @@ def main():
             # Update database
             print("Updating historical database...")
             db = DHSDatabase()
-            stats = db.update_records(records, min_expected_records=args.min_expected_records)
+            stats = db.update_records(
+                records, min_expected_records=args.min_expected_records
+            )
 
             print(f"\n{'=' * 70}")
             print("DATABASE UPDATE SUMMARY")
