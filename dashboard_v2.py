@@ -5,6 +5,7 @@ Matches the design from the reference mockup (Image 1)
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -482,76 +483,6 @@ st.markdown(
     }
 
 </style>
-
-<script>
-    // Photo Zoom Modal JavaScript
-    function initPhotoZoom() {
-        // Create modal if it doesn't exist
-        if (!document.getElementById('photoModal')) {
-            const modal = document.createElement('div');
-            modal.id = 'photoModal';
-            modal.className = 'photo-modal';
-            modal.innerHTML = `
-                <span class="photo-modal-close" onclick="closePhotoModal()">&times;</span>
-                <img class="photo-modal-content" id="modalImage" alt="Zoomed photo">
-                <div class="photo-modal-info">Click anywhere or press ESC to close</div>
-            `;
-            document.body.appendChild(modal);
-            
-            // Close on background click
-            modal.onclick = function(event) {
-                if (event.target === modal) {
-                    closePhotoModal();
-                }
-            };
-            
-            // Close on ESC key
-            document.addEventListener('keydown', function(event) {
-                if (event.key === 'Escape') {
-                    closePhotoModal();
-                }
-            });
-        }
-        
-        // Add click handlers to all mugshots
-        document.querySelectorAll('.mugshot-img').forEach(img => {
-            img.onclick = function() {
-                openPhotoModal(this.src);
-            };
-        });
-    }
-    
-    function openPhotoModal(imageSrc) {
-        const modal = document.getElementById('photoModal');
-        const modalImg = document.getElementById('modalImage');
-        modal.classList.add('active');
-        modalImg.src = imageSrc;
-        document.body.style.overflow = 'hidden';
-    }
-    
-    function closePhotoModal() {
-        const modal = document.getElementById('photoModal');
-        modal.classList.remove('active');
-        document.body.style.overflow = 'auto';
-    }
-    
-    // Initialize on page load and after Streamlit updates
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initPhotoZoom);
-    } else {
-        initPhotoZoom();
-    }
-    
-    // Reinitialize after Streamlit rerenders
-    const observer = new MutationObserver(function(mutations) {
-        initPhotoZoom();
-    });
-    
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-</script>
 """,
     unsafe_allow_html=True,
 )
@@ -1208,9 +1139,12 @@ def main():
         if len(crime) > 30:
             crime = crime[:30] + "..."
 
+        img_url = row.get("image_url", "")
+        # Escape quotes in URL for onclick handler
+        img_url_safe = img_url.replace("'", "\\'")
         mugshot_html = f"""
         <div class="mugshot-container">
-            <img src="{row.get("image_url", "")}" class="mugshot-img" onerror="this.style.display='none'">
+            <img src="{img_url}" class="mugshot-img zoom-trigger" data-img-src="{img_url}" onerror="this.style.display='none'">
         </div>
         """
 
@@ -1257,6 +1191,164 @@ def main():
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)  # End table card
+
+    # Inject JavaScript for photo zoom modal
+    components.html(
+        """
+        <div id="photoModal" class="photo-modal" onclick="if(event.target.id==='photoModal') this.style.display='none'">
+            <span class="photo-modal-close" onclick="document.getElementById('photoModal').style.display='none'">&times;</span>
+            <img class="photo-modal-content" id="modalImage" alt="Zoomed photo">
+            <div class="photo-modal-info">Click anywhere or press ESC to close</div>
+        </div>
+        
+        <script>
+            // Function to open modal
+            function openPhotoModal(imgSrc) {
+                const modal = document.getElementById('photoModal');
+                const modalImg = document.getElementById('modalImage');
+                if (modal && modalImg) {
+                    modal.style.display = 'flex';
+                    modalImg.src = imgSrc;
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+            
+            // Function to close modal
+            function closePhotoModal() {
+                const modal = document.getElementById('photoModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
+            }
+            
+            // Close on ESC key
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closePhotoModal();
+                }
+            });
+            
+            // Add click handlers to all images with zoom-trigger class
+            function attachZoomHandlers() {
+                // Look in parent document (Streamlit's main window)
+                const parentDoc = window.parent.document;
+                const images = parentDoc.querySelectorAll('.zoom-trigger');
+                
+                images.forEach(img => {
+                    img.style.cursor = 'pointer';
+                    img.onclick = function() {
+                        const imgSrc = this.getAttribute('data-img-src') || this.src;
+                        openPhotoModalInParent(imgSrc);
+                    };
+                });
+            }
+            
+            // Open modal in parent document
+            function openPhotoModalInParent(imgSrc) {
+                const parentDoc = window.parent.document;
+                let modal = parentDoc.getElementById('photoModalMain');
+                
+                // Create modal if it doesn't exist
+                if (!modal) {
+                    modal = parentDoc.createElement('div');
+                    modal.id = 'photoModalMain';
+                    modal.style.cssText = `
+                        display: none;
+                        position: fixed;
+                        z-index: 999999;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0, 0, 0, 0.95);
+                        justify-content: center;
+                        align-items: center;
+                    `;
+                    
+                    const closeBtn = parentDoc.createElement('span');
+                    closeBtn.innerHTML = '&times;';
+                    closeBtn.style.cssText = `
+                        position: absolute;
+                        top: 20px;
+                        right: 40px;
+                        color: white;
+                        font-size: 48px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        user-select: none;
+                        transition: color 0.2s;
+                    `;
+                    closeBtn.onmouseover = () => closeBtn.style.color = '#ef4444';
+                    closeBtn.onmouseout = () => closeBtn.style.color = 'white';
+                    closeBtn.onclick = () => {
+                        modal.style.display = 'none';
+                        parentDoc.body.style.overflow = 'auto';
+                    };
+                    
+                    const img = parentDoc.createElement('img');
+                    img.id = 'photoModalMainImg';
+                    img.style.cssText = `
+                        max-width: 90%;
+                        max-height: 90%;
+                        object-fit: contain;
+                        border-radius: 8px;
+                        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+                    `;
+                    
+                    const info = parentDoc.createElement('div');
+                    info.innerHTML = 'Click anywhere or press ESC to close';
+                    info.style.cssText = `
+                        position: absolute;
+                        bottom: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        color: white;
+                        text-align: center;
+                        font-size: 14px;
+                        background: rgba(0, 0, 0, 0.7);
+                        padding: 10px 20px;
+                        border-radius: 20px;
+                    `;
+                    
+                    modal.appendChild(closeBtn);
+                    modal.appendChild(img);
+                    modal.appendChild(info);
+                    parentDoc.body.appendChild(modal);
+                    
+                    // Close on background click
+                    modal.onclick = function(e) {
+                        if (e.target === modal) {
+                            modal.style.display = 'none';
+                            parentDoc.body.style.overflow = 'auto';
+                        }
+                    };
+                    
+                    // Close on ESC
+                    parentDoc.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape' && modal.style.display === 'flex') {
+                            modal.style.display = 'none';
+                            parentDoc.body.style.overflow = 'auto';
+                        }
+                    });
+                }
+                
+                // Show modal with image
+                const img = parentDoc.getElementById('photoModalMainImg');
+                if (img) {
+                    img.src = imgSrc;
+                    modal.style.display = 'flex';
+                    parentDoc.body.style.overflow = 'hidden';
+                }
+            }
+            
+            // Run on load and periodically to catch new elements
+            attachZoomHandlers();
+            setInterval(attachZoomHandlers, 1000);
+        </script>
+        """,
+        height=0,
+    )
 
 
 if __name__ == "__main__":
