@@ -39,10 +39,15 @@ class DHSDatabase:
         with open(self.db_path, "w", encoding="utf-8") as f:
             json.dump(self.data, indent=2, fp=f, ensure_ascii=False)
 
-    def update_records(self, new_records: List[Dict]) -> Dict:
+    def update_records(self, new_records: List[Dict], min_expected_records: int = 100) -> Dict:
         """
         Update database with new scrape results
         Returns statistics about changes
+        
+        Args:
+            new_records: List of newly scraped records
+            min_expected_records: Minimum records expected for a successful scrape.
+                                 If less, don't mark missing records as removed.
         """
         today = datetime.now().strftime("%Y-%m-%d")
         stats = {
@@ -51,6 +56,15 @@ class DHSDatabase:
             "still_present": 0,
             "total_in_scrape": len(new_records),
         }
+
+        # Safety check: if we got very few records, something went wrong
+        current_active = sum(1 for r in self.data["records"].values() if r["status"] == "active")
+        scrape_looks_incomplete = len(new_records) < min_expected_records
+        
+        if scrape_looks_incomplete and current_active > len(new_records) * 2:
+            print(f"\n⚠️  WARNING: Scraped only {len(new_records)} records but have {current_active} active.")
+            print(f"⚠️  This looks like an incomplete scrape. Will NOT mark missing records as removed.")
+            print(f"⚠️  Set min_expected_records lower if this is intentional.\n")
 
         # Create a set of names from new scrape
         scraped_names = {r["name"] for r in new_records}
@@ -104,11 +118,15 @@ class DHSDatabase:
                 stats["still_present"] += 1
 
         # Mark people who are no longer in the database
-        for name, record in self.data["records"].items():
-            if name not in scraped_names and record["status"] == "active":
-                record["status"] = "removed"
-                record["removed_date"] = today
-                print(f"  ❌ REMOVED: {name}")
+        # BUT ONLY if the scrape looks complete
+        if not scrape_looks_incomplete:
+            for name, record in self.data["records"].items():
+                if name not in scraped_names and record["status"] == "active":
+                    record["status"] = "removed"
+                    record["removed_date"] = today
+                    print(f"  ❌ REMOVED: {name}")
+        else:
+            print(f"\n✓ Skipped marking missing records as removed (scrape appears incomplete)")
 
         # Update metadata
         self.data["metadata"]["last_updated"] = datetime.now().isoformat()
@@ -344,17 +362,21 @@ class DHSWoWScraper:
             print(f"  ✗ Error extracting cards: {e}")
             return []
 
-    def click_next_page(self) -> bool:
-        """Try to click the next page button"""
+    def load_page_number(self, page_index: int) -> bool:
+        """
+        Navigate directly to a page by index (0-based) using the ?page=X query param.
+        This avoids brittle Next-button clicking and ensures we can jump to deep pages.
+        """
         try:
-            # Try finding "Next" link
-            next_links = self.driver.find_elements(By.PARTIAL_LINK_TEXT, "Next")
-            if next_links:
-                next_links[0].click()
-                time.sleep(self.delay)
-                return True
-            return False
-        except:
+            if page_index <= 0:
+                url = self.base_url
+            else:
+                url = f"{self.base_url}?page={page_index}"
+            self.driver.get(url)
+            time.sleep(self.delay + 1)
+            return True
+        except Exception as e:
+            print(f"  ⚠️  Error loading page index {page_index}: {e}")
             return False
 
     def apply_filters(
@@ -403,21 +425,36 @@ class DHSWoWScraper:
         max_pages: int = 50,
         max_results: int = None,
     ) -> List[Dict]:
-        """Scrape all records"""
+        """
+        Scrape all records using direct page navigation (?page=N) to avoid flaky clicks.
+        Pages on DHS are 0-based in the query param; UI shows 1-based.
+        """
         all_records = []
 
-        if not self.load_page():
+        if not self.setup_driver():
             return all_records
 
         if country or state:
+            # Load first page and apply filters once
+            if not self.load_page_number(0):
+                return all_records
             self.apply_filters(country=country, state=state)
             time.sleep(self.delay)
+        else:
+            # Ensure first page is loaded
+            if not self.load_page_number(0):
+                return all_records
 
-        page_num = 1
         consecutive_empty = 0
 
-        while page_num <= max_pages:
-            print(f"Page {page_num}...", end=" ")
+        for page_num in range(1, max_pages + 1):
+            page_index = page_num - 1  # zero-based for the ?page= param
+            print(f"Page {page_num} (page param={page_index})...", end=" ")
+
+            if not self.load_page_number(page_index):
+                print("✗ Failed to load page; stopping")
+                break
+
             cards = self.extract_all_cards()
 
             if cards:
@@ -432,18 +469,12 @@ class DHSWoWScraper:
                 consecutive_empty += 1
                 print(f"✗ Empty (attempt {consecutive_empty}/3)")
                 if consecutive_empty >= 3:
+                    print("\n⚠️  Three consecutive empty pages, stopping scrape")
                     break
 
-            if page_num < max_pages and (
-                not max_results or len(all_records) < max_results
-            ):
-                if self.click_next_page():
-                    page_num += 1
-                else:
-                    break
-            else:
-                break
-
+        print(f"\n{'='*70}")
+        print(f"Scraping completed: {len(all_records)} total records from {page_num} pages")
+        print(f"{'='*70}\n")
         return all_records
 
     def close(self):
@@ -466,6 +497,12 @@ def main():
     parser.add_argument("--delay", type=float, default=2.0, help="Delay in seconds")
     parser.add_argument("--visible", action="store_true", help="Show browser")
     parser.add_argument("--export-csv", action="store_true", help="Export to CSV")
+    parser.add_argument(
+        "--min-expected-records",
+        type=int,
+        default=100,
+        help="If scrape returns fewer than this, skip marking records removed.",
+    )
 
     args = parser.parse_args()
 
@@ -504,7 +541,7 @@ def main():
             # Update database
             print("Updating historical database...")
             db = DHSDatabase()
-            stats = db.update_records(records)
+            stats = db.update_records(records, min_expected_records=args.min_expected_records)
 
             print(f"\n{'=' * 70}")
             print("DATABASE UPDATE SUMMARY")
