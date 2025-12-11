@@ -401,6 +401,19 @@ st.markdown(
     div[data-testid="column"] {
         padding: 0 0.5rem;
     }
+    
+    /* Navbar responsive styling */
+    @media (max-width: 768px) {
+        .navbar-container {
+            flex-direction: column !important;
+            gap: 15px !important;
+            text-align: center;
+        }
+        .navbar-links {
+            flex-direction: column !important;
+            gap: 10px !important;
+        }
+    }
 
 </style>
 """,
@@ -412,7 +425,7 @@ st.markdown(
 # -----------------------------------------------------------------------------
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_database():
     """Load the historical database"""
     db_path = Path("data/historical_arrests.json")
@@ -538,6 +551,63 @@ def main():
     if not db_data["records"]:
         st.error("⚠️ No data available. Please run the scraper first.")
         return
+    
+    # Navigation Bar
+    last_updated = db_data.get("metadata", {}).get("last_updated", "")
+    formatted_date = "Unknown"
+    if last_updated:
+        try:
+            dt = datetime.fromisoformat(last_updated)
+            formatted_date = dt.strftime("%b %d, %Y at %I:%M %p")
+        except:
+            formatted_date = last_updated
+    
+    st.markdown(f"""
+    <div class="navbar-container" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); 
+                padding: 12px 24px; 
+                border-radius: 8px; 
+                margin-bottom: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;">
+        <div style="display: flex; align-items: center; gap: 30px;">
+            <div style="color: white; font-size: 18px; font-weight: 700;">
+                🇺🇸 DHS Tracker
+            </div>
+            <div style="color: rgba(255,255,255,0.9); font-size: 13px;">
+                ✅ Updated: {formatted_date}
+            </div>
+        </div>
+        <div class="navbar-links" style="display: flex; gap: 20px; align-items: center;">
+            <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard" 
+               target="_blank" 
+               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; transition: opacity 0.2s;"
+               onmouseover="this.style.opacity='0.8'" 
+               onmouseout="this.style.opacity='1'">
+                📦 Source Code
+            </a>
+            <a href="https://github.com/Mustafeabdulahi/dhs-tracker-dashboard/issues" 
+               target="_blank" 
+               style="color: white; text-decoration: none; font-size: 13px; font-weight: 500; transition: opacity 0.2s;"
+               onmouseover="this.style.opacity='0.8'" 
+               onmouseout="this.style.opacity='1'">
+                🐛 Report Issue
+            </a>
+            <div style="color: rgba(255,255,255,0.8); font-size: 12px; border-left: 1px solid rgba(255,255,255,0.3); padding-left: 20px;">
+                by Mustafe Abdulahi
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Disclaimer Banner
+    st.info("""
+    ⚠️ **Important Disclaimer**: This data is sourced from publicly available DHS records. 
+    Arrest dates shown are **approximated** based on when records first appeared (±1-7 days accuracy). 
+    For official information, contact ICE directly or consult with legal counsel. 
+    This dashboard is for informational purposes only and should not be used as the sole source for legal decisions.
+    """)
 
     all_records = list(db_data["records"].values())
     active_records = [r for r in all_records if r.get("status") == "active"]
@@ -953,7 +1023,7 @@ def main():
             <img src="{row.get("image_url", "")}" class="mugshot-img" onerror="this.style.display='none'">
         </div>
         """
-        
+
         # Create clickable name with press release link
         press_url = row.get("press_release_url", "")
         if press_url:
