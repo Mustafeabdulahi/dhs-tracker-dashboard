@@ -338,6 +338,25 @@ st.markdown(
         background-color: #f8fafc;
     }
     
+    /* Person name link styling */
+    .person-name-link {
+        color: #1e3a8a !important;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        border-bottom: 2px solid transparent;
+    }
+    
+    .person-name-link:hover {
+        color: #2563eb !important;
+        border-bottom: 2px solid #2563eb;
+    }
+    
+    .person-name-no-link {
+        color: #1e293b;
+        font-weight: 500;
+    }
+    
     .mugshot-container {
         width: 40px;
         height: 40px;
@@ -934,12 +953,19 @@ def main():
             <img src="{row.get("image_url", "")}" class="mugshot-img" onerror="this.style.display='none'">
         </div>
         """
+        
+        # Create clickable name with press release link
+        press_url = row.get("press_release_url", "")
+        if press_url:
+            name_html = f'<a href="{press_url}" target="_blank" rel="noopener noreferrer" class="person-name-link">{row.get("name", "")}</a>'
+        else:
+            name_html = f'<span class="person-name-no-link">{row.get("name", "")} <span style="font-size: 11px; color: #94a3b8;">(No details)</span></span>'
 
         st.markdown(
             f"""
         <div class="table-row">
             <div>{mugshot_html}</div>
-            <div style="font-weight: 500; color: #1e293b;">{row.get("name", "")}</div>
+            <div style="font-weight: 500;">{name_html}</div>
             <div>{row.get("country", "").title()}</div>
             <div title="{row.get("convicted_of", "")}">{crime}</div>
             <div title="{row.get("arrested_location", "")}">{row.get("arrested_location", "")}</div>

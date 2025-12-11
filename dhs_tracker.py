@@ -271,6 +271,17 @@ class DHSWoWScraper:
                     except:
                         pass
                     
+                    # Extract press release URL
+                    try:
+                        press_link = card.find_element(By.CSS_SELECTOR, 'a.usa-card__more')
+                        href = press_link.get_attribute('href')
+                        if href:
+                            if href.startswith('/'):
+                                href = 'https://www.dhs.gov' + href
+                            record['press_release_url'] = href
+                    except:
+                        pass
+                    
                     if record.get('name'):
                         records.append(record)
                 
